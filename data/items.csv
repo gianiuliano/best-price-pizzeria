@@ -1,0 +1,10 @@
+item_id,name,sku,unit,line
+I001,Harina 00 Caputo 25kg,FLOUR-25KG,kg,DRY GOODS
+I002,Tomate San Marzano DOP 2.5kg,TOM-SM-2500,kg,DRY GOODS
+I004,Levadura seca 1lb,YEAST-1LB,lb,DRY GOODS
+I007,Aceite de oliva EVO 3L,EVOO-3L,L,DRY GOODS
+I005,Albahaca fresca 1lb,BASIL-1LB,lb,PRODUCE
+I003,Mozzarella Fior di Latte 2kg,MOZZ-2KG,kg,DAIRY & CHILLED
+I006,Cajas pizza 12" (50/caja),BOX-12IN-50,case,PACKAGING
+I100,Carne fresca (placeholder),MEAT-PLACE,lb,FRESH MEATS
+I200,Pescado fresco (placeholder),FISH-PLACE,lb,FRESH FISH
