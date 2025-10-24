@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from utils import load_all, compute_best, build_vendor_orders, vendor_email_body
+# NUEVO (para recetas)
+from utils import build_item_cost_map, compute_recipe_costs
 
 st.set_page_config(page_title='Best Price • Pizzería', layout='wide')
 
@@ -9,6 +11,9 @@ def get_data():
     return load_all()
 
 vendors, items, vendor_items = get_data()
+# Cargar CSV de recetas
+recipes = pd.read_csv('data/recipes.csv')
+recipe_items = pd.read_csv('data/recipe_items.csv')
 
 st.title("🍕 Best Price • Pizzería")
 st.caption("Compara precios por producto y línea, arma carrito y genera órdenes por proveedor.")
@@ -21,7 +26,7 @@ with st.sidebar:
 
 best, board, vi = compute_best(vendors, items, vendor_items, qty, selected_lines)
 
-tab1, tab2, tab3 = st.tabs(["Mejor precio", "Ranking proveedores", "Armar orden"])
+tab1, tab2, tab3, tab4 = st.tabs(["Mejor precio", "Ranking proveedores", "Armar orden", "Recetas & Food Cost"])
 
 with tab1:
     st.subheader("🏷️ Mejor precio por producto")
@@ -87,3 +92,41 @@ with tab3:
             st.code(vendor_email_body(block), language="markdown")
     else:
         st.info("El carrito está vacío. Agrega productos desde el listado de Mejor precio.")
+with tab4:
+    st.subheader("🍳 Recetas & Food Cost")
+    st.caption("Calcula el costo de cada receta usando el mejor precio actual por ingrediente.")
+
+    # Cantidad para evaluar price breaks en el costo de ingredientes
+    qty_for_breaks = st.number_input("Cantidad para price breaks (cálculo de costos)", min_value=1, value=1, step=1)
+
+    # Mapa de costos por ítem (usa el mejor precio actual)
+    item_cost_map = build_item_cost_map(vendors, items, vendor_items, qty_for_breaks=qty_for_breaks)
+
+    # Cálculo de costos de recetas
+    summary_df, detail_df = compute_recipe_costs(recipes, recipe_items, items, item_cost_map)
+
+    # --- Resumen por receta ---
+    st.markdown("#### Resumen por receta")
+    show_sum = summary_df[['recipe_name','recipe_cost','portions','cost_per_portion','target_food_cost_pct','suggested_price']]\
+        .rename(columns={'recipe_name':'Receta','recipe_cost':'Costo Receta','portions':'Porciones',
+                         'cost_per_portion':'Costo/Porción','target_food_cost_pct':'% Objetivo',
+                         'suggested_price':'Precio Sugerido'})
+    st.dataframe(show_sum, use_container_width=True)
+    st.download_button("⬇️ Descargar CSV (resumen recetas)", summary_df.to_csv(index=False).encode('utf-8'),
+                       file_name="recipe_costs_summary.csv", mime="text/csv")
+
+    # --- Detalle por receta ---
+    st.markdown("#### Detalle por receta")
+    selected_recipe = st.selectbox("Ver detalle de:", options=recipes['recipe_name'].tolist())
+    rid = recipes[recipes['recipe_name']==selected_recipe].iloc[0]['recipe_id']
+    det = detail_df[detail_df['recipe_id']==rid].copy()
+    if det.empty:
+        st.info("Esta receta no tiene ingredientes cargados.")
+    else:
+        show_det = det[['item_name','qty','unit','waste_pct','unit_cost','unit_base','qty_in_base','extended','vendor_name']]\
+            .rename(columns={'item_name':'Ingrediente','qty':'Cantidad','unit':'Unidad Receta',
+                             'waste_pct':'Merma','unit_cost':'Costo/Unidad','unit_base':'Unidad Costo',
+                             'qty_in_base':'Cant. Efectiva','extended':'Importe','vendor_name':'Proveedor'})
+        st.dataframe(show_det, use_container_width=True)
+        st.download_button("⬇️ Descargar CSV (detalle receta)", det.to_csv(index=False).encode('utf-8'),
+                           file_name=f"recipe_detail_{rid}.csv", mime="text/csv")
