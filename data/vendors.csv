@@ -1,0 +1,6 @@
+vendor_id,name,email,lead_time_days,min_order_amount,delivery_days
+V001,Sysco Miami,orders@syscomiami.com,2,250,Mon,Wed,Fri
+V002,US Foods,orders@usfoods.com,2,300,Tue,Thu,Sat
+V003,Local Dairy Co.,orders@localdairy.co,1,150,Daily
+V004,Roma Foods,orders@romafoods.com,3,200,Mon,Thu
+V005,Miami Packaging,sales@miamipackaging.com,2,100,Mon-Fri
