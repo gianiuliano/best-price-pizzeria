@@ -1,0 +1,13 @@
+recipe_id,item_id,qty,unit,waste_pct,notes
+R001,I001,250,g,0.00,Harina para masa
+R001,I002,80,g,0.00,Tomate San Marzano
+R001,I003,120,g,0.05,Mozzarella (merma 5%)
+R001,I007,10,ml,0.00,Aceite de oliva
+R001,I005,4,g,0.00,Albahaca
+
+R002,I001,250,g,0.00,Harina
+R002,I002,70,g,0.00,Tomate
+R002,I003,110,g,0.05,Mozzarella
+R002,I007,8,ml,0.00,Aceite
+R002,I005,2,g,0.00,Albahaca
+R002,I100,30,g,0.00,Pepperoni
