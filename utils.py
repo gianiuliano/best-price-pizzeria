@@ -82,3 +82,110 @@ Gracias,
 Compras — {location_name}
 """
     return body
+# ===== FOOD COST / RECETAS =====
+
+# Conversión simple opcional (actívala si lo necesitas)
+UNIT_FACTORS = {
+    ('kg','g'): 1000.0,
+    ('g','kg'): 1/1000.0,
+    ('L','ml'): 1000.0,
+    ('ml','L'): 1/1000.0,
+    ('lb','oz'): 16.0,
+    ('oz','lb'): 1/16.0,
+}
+
+def convert_qty(qty, from_u, to_u):
+    if from_u == to_u:
+        return float(qty)
+    key = (from_u, to_u)
+    if key in UNIT_FACTORS:
+        return float(qty) / UNIT_FACTORS[(to_u, from_u)] if (to_u, from_u) in UNIT_FACTORS else float(qty) * UNIT_FACTORS[key]
+    # Si no hay conversión conocida, asumimos misma unidad (MVP)
+    return float(qty)
+
+def build_item_cost_map(vendors, items, vendor_items, qty_for_breaks:int=1):
+    """
+    Devuelve dict {item_id: {'cost_per_unit': float, 'unit': str, 'vendor_id': str, 'vendor_name': str}}
+    usando el mejor precio efectivo (con price breaks según qty_for_breaks).
+    """
+    # Reusa tu función de best price
+    from utils import compute_best  # importe local para evitar ciclos
+    best, _, _ = compute_best(vendors, items, vendor_items, qty=qty_for_breaks, selected_lines=None)
+    best_map = {}
+    for _, r in best.iterrows():
+        best_map[r['item_id']] = {
+            'cost_per_unit': float(r['eff_unit_price']),
+            'unit': r['unit'],
+            'vendor_id': r['vendor_id'],
+            'vendor_name': r['vendor_name']
+        }
+    return best_map
+
+def compute_recipe_costs(recipes_df, recipe_items_df, items_df, item_cost_map, default_waste_pct=0.0):
+    """
+    Calcula costo por receta y por porción.
+    Retorna (resumen_df, detalle_df)
+    """
+    details = []
+    for _, row in recipe_items_df.iterrows():
+        rid = row['recipe_id']
+        iid = row['item_id']
+        qty = float(row['qty'])
+        unit = str(row['unit'])
+        waste = float(row.get('waste_pct', default_waste_pct) or 0.0)
+
+        # información del item (unidad base)
+        item_row = items_df[items_df['item_id']==iid]
+        if item_row.empty or iid not in item_cost_map:
+            # ítem sin costo disponible → lo saltamos o lo marcamos
+            details.append({
+                'recipe_id': rid, 'item_id': iid, 'item_name': '(ITEM SIN COSTO)',
+                'qty': qty, 'unit': unit, 'waste_pct': waste,
+                'unit_cost': 0.0, 'unit_base': unit, 'qty_in_base': qty, 'extended': 0.0,
+                'vendor_name': ''
+            })
+            continue
+
+        item_name = item_row.iloc[0]['name']
+        base_unit = item_cost_map[iid]['unit']
+        unit_cost = item_cost_map[iid]['cost_per_unit']
+        vendor_name = item_cost_map[iid]['vendor_name']
+
+        # convertir cantidad a la unidad base de costo si hace falta
+        qty_in_base = convert_qty(qty, unit, base_unit)
+        # aplicar merma (waste)
+        effective_qty = qty_in_base * (1.0 + waste)
+        extended = effective_qty * unit_cost
+
+        details.append({
+            'recipe_id': rid, 'item_id': iid, 'item_name': item_name,
+            'qty': qty, 'unit': unit, 'waste_pct': waste,
+            'unit_cost': unit_cost, 'unit_base': base_unit,
+            'qty_in_base': effective_qty, 'extended': extended,
+            'vendor_name': vendor_name
+        })
+
+    detail_df = pd.DataFrame(details)
+
+    # resumen por receta
+    summary_rows = []
+    for _, r in recipes_df.iterrows():
+        rid = r['recipe_id']
+        sub = detail_df[detail_df['recipe_id']==rid]
+        recipe_cost = float(sub['extended'].sum()) if not sub.empty else 0.0
+        portions = float(r.get('portions', 1) or 1)
+        cost_per_portion = recipe_cost / portions if portions > 0 else recipe_cost
+        target_pct = float(r.get('target_food_cost_pct', 0.30) or 0.30)
+        suggested_price = cost_per_portion / target_pct if target_pct > 0 else 0.0
+
+        summary_rows.append({
+            'recipe_id': rid,
+            'recipe_name': r['recipe_name'],
+            'recipe_cost': round(recipe_cost, 2),
+            'portions': portions,
+            'cost_per_portion': round(cost_per_portion, 2),
+            'target_food_cost_pct': target_pct,
+            'suggested_price': round(suggested_price, 2)
+        })
+    summary_df = pd.DataFrame(summary_rows)
+    return summary_df, detail_df
